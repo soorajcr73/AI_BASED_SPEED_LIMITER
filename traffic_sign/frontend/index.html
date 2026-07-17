@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligent Traffic Speed Limiter</title>
+    <style>
+        :root {
+            --bg-dark: #07131a;
+            --bg-card: rgba(10, 26, 35, 0.9);
+            --accent: #2fe0a5;
+            --accent-strong: #15b984;
+            --danger: #ff6b6b;
+            --warning: #ffcc66;
+            --text-main: #f4fbff;
+            --text-soft: #c1d4dd;
+            --border: rgba(255, 255, 255, 0.12);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+            color: var(--text-main);
+            background:
+                linear-gradient(rgba(4, 12, 18, 0.78), rgba(4, 12, 18, 0.88)),
+                url("traffic-bg.png") center/cover no-repeat fixed;
+        }
+
+        .page {
+            width: min(1080px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 28px 0 40px;
+        }
+
+        .topbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border);
+            backdrop-filter: blur(10px);
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--warning);
+            box-shadow: 0 0 12px rgba(255, 204, 102, 0.7);
+        }
+
+        .dot.connected {
+            background: var(--accent);
+            box-shadow: 0 0 12px rgba(47, 224, 165, 0.75);
+        }
+
+        .dot.disconnected {
+            background: var(--danger);
+            box-shadow: 0 0 12px rgba(255, 107, 107, 0.75);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(32px, 4vw, 50px);
+            line-height: 1.05;
+        }
+
+        .subtitle {
+            margin: 10px 0 0;
+            color: var(--text-soft);
+            max-width: 720px;
+            line-height: 1.6;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 22px;
+        }
+
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 22px;
+            padding: 22px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
+        }
+
+        .panel h2 {
+            margin: 0 0 14px;
+            font-size: 22px;
+        }
+
+        .panel p {
+            color: var(--text-soft);
+            line-height: 1.6;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 14px;
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+        }
+
+        button {
+            border: none;
+            border-radius: 14px;
+            padding: 12px 18px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+        }
+
+        .primary-btn {
+            background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+            color: #06251b;
+        }
+
+        .secondary-btn {
+            background: rgba(255, 255, 255, 0.12);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+        }
+
+        .speed-box {
+            margin-top: 22px;
+            padding: 22px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, rgba(47, 224, 165, 0.16), rgba(14, 34, 43, 0.85));
+            border: 1px solid rgba(47, 224, 165, 0.2);
+        }
+
+        .speed-label {
+            color: var(--text-soft);
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .speed-value {
+            margin-top: 8px;
+            font-size: clamp(38px, 6vw, 62px);
+            font-weight: 800;
+        }
+
+        .helper-text {
+            margin-top: 10px;
+            color: var(--text-soft);
+            line-height: 1.6;
+        }
+
+        .progress-shell {
+            width: 100%;
+            height: 14px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 999px;
+            overflow: hidden;
+            display: none;
+            margin-top: 18px;
+        }
+
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), #3ec7ff);
+            transition: width 0.25s ease;
+        }
+
+        .status-note,
+        .timeline,
+        .summary-card {
+            margin-top: 18px;
+            padding: 16px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border);
+        }
+
+        .status-note {
+            min-height: 62px;
+        }
+
+        .timeline {
+            max-height: 340px;
+            overflow-y: auto;
+        }
+
+        .timeline-entry {
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .timeline-entry:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .timeline-time {
+            color: var(--accent);
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .timeline-text {
+            margin-top: 6px;
+            line-height: 1.5;
+        }
+
+        .video-shell {
+            margin-top: 18px;
+        }
+
+        video {
+            width: 100%;
+            border-radius: 18px;
+            border: 1px solid var(--border);
+            background: #000;
+            display: none;
+        }
+
+        .video-placeholder {
+            padding: 42px 20px;
+            text-align: center;
+            color: var(--text-soft);
+            border-radius: 18px;
+            border: 1px dashed rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .meta-item {
+            padding: 14px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+        }
+
+        .meta-label {
+            color: var(--text-soft);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .meta-value {
+            margin-top: 8px;
+            font-size: 18px;
+            font-weight: 700;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .online {
+            color: var(--accent);
+        }
+
+        .warning {
+            color: var(--warning);
+        }
+
+        .alert {
+            color: var(--danger);
+        }
+
+        @media (max-width: 900px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .meta-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="topbar">
+            <div class="status-pill">
+                <span id="connectionDot" class="dot"></span>
+                <div>
+                    <div id="connectionHeadline">Checking realtime connection...</div>
+                    <div id="connectionDetails" style="color: var(--text-soft); font-size: 14px;">Waiting for WebSocket connection.</div>
+                </div>
+            </div>
+        </div>
+
+        <section class="panel" style="margin-bottom: 22px;">
+            <h1>Intelligent Traffic Speed Limiter</h1>
+            <p class="subtitle">
+                Upload a road video, process the detected traffic signs, and watch the confirmed speed limit update live from your backend stream.
+            </p>
+        </section>
+
+        <div class="layout">
+            <section class="panel">
+                <h2>Video Input</h2>
+                <p>Select a video file and start processing. The processed video will appear below, while confirmed speed limits continue updating in realtime.</p>
+
+                <input type="file" id="videoInput" accept="video/*">
+
+                <div class="controls">
+                    <button id="uploadButton" class="primary-btn" onclick="uploadVideo()">Upload and Process</button>
+                </div>
+
+                <div id="progressShell" class="progress-shell">
+                    <div id="progressBar" class="progress-bar"></div>
+                </div>
+
+                <div id="statusNote" class="status-note">
+                    Waiting for a video upload.
+                </div>
+
+                <div class="speed-box">
+                    <div class="speed-label">Detected Speed Limit</div>
+                    <div id="speedValue" class="speed-value">-- km/h</div>
+                    <div id="speedHelper" class="helper-text">
+                        The confirmed speed will appear here after processing or realtime detection.
+                    </div>
+                </div>
+
+                <div class="video-shell">
+                    <h2 style="margin-top: 24px;">Processed Video</h2>
+                    <div id="videoPlaceholder" class="video-placeholder">
+                        Upload a video to start realtime sign detection.
+                    </div>
+                    <video id="videoPlayer" controls></video>
+                </div>
+            </section>
+
+            <section class="panel">
+                <h2>Detection Summary</h2>
+                <div class="meta-grid">
+                    <div class="meta-item">
+                        <div class="meta-label">Backend URL</div>
+                        <div class="meta-value">http://127.0.0.1:5000</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">WebSocket</div>
+                        <div id="connectionStatus" class="meta-value warning">Connecting</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Motor Speed</div>
+                        <div id="motorStatus" class="meta-value">Waiting</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Latest Sign</div>
+                        <div id="latestSignStatus" class="meta-value">None</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Drive State</div>
+                        <div id="driveState" class="meta-value">Standby</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Speed Reduced</div>
+                        <div id="reductionStatus" class="meta-value">No</div>
+                    </div>
+                </div>
+
+                <div id="summaryCard" class="summary-card">
+                    Waiting for the realtime detection stream.
+                </div>
+
+                <div class="status-note" id="driveStateNote">
+                    Waiting for OCR-confirmed speed limit.
+                </div>
+
+                <div class="timeline" id="timeline">
+                    No detections yet.
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "http://127.0.0.1:5000";
+        const WS_URL = "ws://127.0.0.1:8000/ws";
+
+        const connectionDot = document.getElementById("connectionDot");
+        const connectionHeadline = document.getElementById("connectionHeadline");
+        const connectionDetails = document.getElementById("connectionDetails");
+        const connectionStatus = document.getElementById("connectionStatus");
+        const motorStatus = document.getElementById("motorStatus");
+        const reductionStatus = document.getElementById("reductionStatus");
+        const latestSignStatus = document.getElementById("latestSignStatus");
+        const driveState = document.getElementById("driveState");
+        const driveStateNote = document.getElementById("driveStateNote");
+        const summaryCard = document.getElementById("summaryCard");
+        const timeline = document.getElementById("timeline");
+        const statusNote = document.getElementById("statusNote");
+        const speedValue = document.getElementById("speedValue");
+        const speedHelper = document.getElementById("speedHelper");
+        const videoPlayer = document.getElementById("videoPlayer");
+        const videoPlaceholder = document.getElementById("videoPlaceholder");
+        const progressShell = document.getElementById("progressShell");
+        const progressBar = document.getElementById("progressBar");
+        const uploadButton = document.getElementById("uploadButton");
+        let isProcessingVideo = false;
+
+        function setConnectionStatus(label, cssClass, detail) {
+            connectionStatus.textContent = label;
+            connectionStatus.className = "meta-value " + cssClass;
+            connectionDot.className = cssClass === "online" ? "dot connected" : "dot disconnected";
+            connectionHeadline.textContent = cssClass === "online" ? "Realtime stream connected" : "Realtime stream disconnected";
+            connectionDetails.textContent = detail;
+        }
+
+        function updateSpeedUI(speed) {
+            const hasSpeed = speed !== null && speed !== undefined;
+            speedValue.textContent = hasSpeed ? `${speed} km/h` : "-- km/h";
+            motorStatus.textContent = hasSpeed ? `${speed} km/h` : "Waiting";
+            reductionStatus.textContent = hasSpeed ? "Yes" : "No";
+            driveState.textContent = hasSpeed ? "Speed Locked" : "Standby";
+            driveStateNote.textContent = hasSpeed
+                ? `Motor should limit to ${speed} km/h.`
+                : "Waiting for OCR-confirmed speed limit.";
+            speedHelper.textContent = hasSpeed
+                ? `The most recent confirmed speed limit is ${speed} km/h.`
+                : "The confirmed speed will appear here after processing or realtime detection.";
+        }
+
+        function updateDriveBehavior(state, detail, activeSign, commandedSpeed) {
+            driveState.textContent = state || "Standby";
+            driveStateNote.textContent = detail || "Waiting for OCR-confirmed speed limit.";
+            latestSignStatus.textContent = activeSign || "None";
+
+            if (commandedSpeed !== null && commandedSpeed !== undefined) {
+                updateSpeedUI(commandedSpeed);
+            }
+
+            if (!activeSign && (!commandedSpeed && commandedSpeed !== 0)) {
+                reductionStatus.textContent = "No";
+            }
+        }
+
+        function appendTimelineEntry(message) {
+            if (timeline.textContent === "No detections yet.") {
+                timeline.innerHTML = "";
+            }
+
+            const entry = document.createElement("div");
+            entry.className = "timeline-entry";
+            entry.innerHTML = message;
+            timeline.appendChild(entry);
+            timeline.scrollTop = timeline.scrollHeight;
+        }
+
+        function formatTimelineEntry(label, detail) {
+            return `
+                <div class="timeline-time">${label}</div>
+                <div class="timeline-text">${detail}</div>
+            `;
+        }
+
+        function updateProcessingProgress(progress, etaSeconds, processedFrames, totalFrames, stage) {
+            progressShell.style.display = "block";
+            progressBar.style.width = `${progress}%`;
+
+            if (stage === "completed") {
+                statusNote.textContent = "Backend processing complete.";
+                summaryCard.textContent = `Processed ${totalFrames} frames successfully.`;
+                return;
+            }
+
+            const etaText = etaSeconds === null || etaSeconds === undefined
+                ? "Estimating remaining time..."
+                : `About ${etaSeconds} sec remaining.`;
+
+            statusNote.textContent = `Backend processing: ${progress}% complete. ${etaText}`;
+            summaryCard.textContent = `Processed ${processedFrames} of ${totalFrames} frames.`;
+        }
+
+        function uploadVideo() {
+            const file = document.getElementById("videoInput").files[0];
+
+            if (!file) {
+                alert("Select a video first.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("video", file);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", `${API_BASE}/upload`, true);
+
+            uploadButton.disabled = true;
+            isProcessingVideo = true;
+            progressShell.style.display = "block";
+            progressBar.style.width = "0%";
+            statusNote.textContent = "Uploading and processing video...";
+            latestSignStatus.textContent = "Scanning";
+            timeline.textContent = "No detections yet.";
+            videoPlayer.style.display = "none";
+            videoPlaceholder.style.display = "block";
+            updateSpeedUI(null);
+            driveState.textContent = "Processing";
+            driveStateNote.textContent = "Analysing uploaded road footage.";
+            summaryCard.textContent = "Backend is processing the uploaded video.";
+
+            xhr.upload.onprogress = function (event) {
+                if (event.lengthComputable) {
+                    const percent = (event.loaded / event.total) * 25;
+                    progressBar.style.width = `${percent}%`;
+                    statusNote.textContent = `Uploading video: ${Math.round((event.loaded / event.total) * 100)}% complete.`;
+                }
+            };
+
+            xhr.onload = function () {
+                uploadButton.disabled = false;
+                isProcessingVideo = false;
+                progressBar.style.width = "100%";
+
+                if (xhr.status !== 200) {
+                    statusNote.textContent = "Processing failed. Check backend logs for details.";
+                    driveState.textContent = "Error";
+                    driveStateNote.textContent = "Upload request failed.";
+                    summaryCard.textContent = xhr.responseText || "The backend returned an error.";
+                    appendTimelineEntry(formatTimelineEntry("Upload", "Processing failed."));
+                    return;
+                }
+
+                const response = JSON.parse(xhr.responseText);
+
+                if (response.final_speed !== null && response.final_speed !== undefined) {
+                    updateSpeedUI(response.final_speed);
+                } else {
+                    driveState.textContent = "No Speed Found";
+                    driveStateNote.textContent = "Processed video without confirmed OCR speed.";
+                    speedHelper.textContent = "No valid speed sign was confirmed in this video.";
+                }
+
+                statusNote.textContent = "Video processed successfully.";
+                summaryCard.textContent = "Processed video is ready. Realtime detections will keep updating below.";
+
+                if (response.video_url) {
+                    videoPlayer.src = `${API_BASE}${response.video_url}`;
+                    videoPlayer.style.display = "block";
+                    videoPlaceholder.style.display = "none";
+                }
+            };
+
+            xhr.onerror = function () {
+                uploadButton.disabled = false;
+                isProcessingVideo = false;
+                statusNote.textContent = "Upload failed because the backend could not be reached.";
+                driveState.textContent = "Error";
+                driveStateNote.textContent = "Backend upload request failed.";
+                summaryCard.textContent = "Make sure the backend is running on port 5000.";
+                appendTimelineEntry(formatTimelineEntry("Upload", "Backend upload request failed."));
+            };
+
+            xhr.send(formData);
+        }
+
+        const socket = new WebSocket(WS_URL);
+
+        socket.onopen = function () {
+            setConnectionStatus("Online", "online", "Connected to ws://127.0.0.1:8000/ws");
+            summaryCard.textContent = "Realtime detection stream is active.";
+        };
+
+        socket.onmessage = function (event) {
+            const data = JSON.parse(event.data);
+
+            if (data.type === "progress") {
+                if (isProcessingVideo) {
+                    const scaledProgress = 25 + (data.progress * 0.75);
+                    updateProcessingProgress(
+                        Math.round(scaledProgress),
+                        data.eta_seconds,
+                        data.processed_frames,
+                        data.total_frames,
+                        data.stage
+                    );
+                }
+            } else if (data.type === "control") {
+                updateDriveBehavior(
+                    data.drive_state,
+                    data.detail,
+                    data.active_sign,
+                    data.speed
+                );
+                summaryCard.textContent = data.reason || "Drive control updated from realtime detection.";
+                appendTimelineEntry(
+                    formatTimelineEntry(
+                        `Time ${data.time} sec`,
+                        `${data.drive_state}: commanded speed ${data.speed ?? "--"} km/h`
+                    )
+                );
+            } else if (data.type === "behavior") {
+                latestSignStatus.textContent = data.sign || "None";
+                driveState.textContent = data.state || "Standby";
+                driveStateNote.textContent = data.message || "Temporary sign behavior updated.";
+                summaryCard.textContent = data.message || "Sign-based behavior updated.";
+                appendTimelineEntry(
+                    formatTimelineEntry(
+                        `Time ${data.time} sec`,
+                        data.target_speed === null || data.target_speed === undefined
+                            ? `${data.sign}: temporary override cleared`
+                            : `${data.sign}: applying temporary cap of ${data.target_speed} km/h`
+                    )
+                );
+            } else if (data.speed !== null && data.speed !== undefined) {
+                updateSpeedUI(data.speed);
+                latestSignStatus.textContent = `${data.speed} km/h`;
+                summaryCard.textContent = `Confirmed speed ${data.speed} km/h received from realtime detection.`;
+                appendTimelineEntry(
+                    formatTimelineEntry(`Time ${data.time} sec`, `Confirmed speed ${data.speed} km/h`)
+                );
+            } else if (data.sign !== null && data.sign !== undefined) {
+                latestSignStatus.textContent = data.sign;
+                summaryCard.textContent = `Latest detected sign: ${data.sign}.`;
+                appendTimelineEntry(
+                    formatTimelineEntry(`Time ${data.time} sec`, `Detected sign ${data.sign}`)
+                );
+            }
+        };
+
+        socket.onerror = function () {
+            setConnectionStatus("Error", "alert", "WebSocket error while talking to the realtime server.");
+            summaryCard.textContent = "Realtime detection stream reported an error.";
+        };
+
+        socket.onclose = function () {
+            setConnectionStatus("Offline", "alert", "WebSocket connection closed.");
+            summaryCard.textContent = "Realtime detection stream is offline.";
+        };
+    </script>
+</body>
+</html>
