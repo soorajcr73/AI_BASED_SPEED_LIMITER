@@ -27,5 +27,15 @@ flowchart TD
     F --> G["Speed Sent to Arduino Uno via PySerial"]
     G --> H["Motor Speed Control"]
 ```
+# Project Screenshots
+## Frontend Gui
+<p align="center">
+  <img src="assets/gui2.png" width="850" alt="Detection and Speed Limit Enforcement Dashboard">
+</p>
+
+## Hardware Prototype
+<p align="center">
+  <img src="assets/hardware.jpeg" width="750" alt="Hardware Prototype">
+</p>
 
 
